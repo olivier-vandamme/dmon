@@ -1,0 +1,275 @@
+/*
+ * Ddash - Docker containers dashboard
+ * Author : Olivier Vandamme
+ * Copyright (c) 2025 Olivier Vandamme
+ * Licence : MIT
+ */
+
+* {
+    box-sizing: border-box;
+}
+
+/* --- LIGHT THEME / PROFESSIONAL CARDS --- */
+:root {
+    --bg-color: #f7f7f7;
+    --card-bg: #ffffff;
+    --host-bg: #eaf4fc;
+    /* Light blue tint for distinct Host */
+    --text-color: #1a1a1a;
+    --secondary-text: #666;
+    --border-color: #e0e0e0;
+    --primary-color: #007bff;
+    --success-color: #28a745;
+    --error-color: #dc3545;
+    --cpu-color: #007bff;
+    --ram-color: #ffc107;
+    --host-cpu-color: #20c997;
+    --chart-bg: #f7f7f7;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    margin: 0;
+    padding: 15px;
+    overflow-x: hidden;
+}
+
+.header {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 15px;
+}
+
+.footer {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding-top: 15px;
+    border-top: 1px solid var(--border-color);
+    margin-bottom: 15px;
+}
+
+h1 {
+    color: var(--primary-color);
+    font-weight: 400;
+    font-size: 2.2em;
+    margin-bottom: 5px;
+}
+
+.update-info {
+    font-size: 0.8em;
+    color: var(--secondary-text);
+}
+
+/* --- HOST STATS BLOCK --- */
+.host-stats {
+    max-width: 1400px;
+    /* height: 200px; Removed for flexibility */
+    margin: 0 auto 15px auto;
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 20px;
+    padding: 15px;
+    /* Same padding as container-cards (was 10px 15px) */
+    background-color: var(--host-bg);
+    /* Distinct color requested */
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 5px var(--shadow-color);
+    color: var(--secondary-text);
+    font-size: 0.95em;
+    align-items: center;
+    border-radius: 6px;
+    /* Added for consistency with container-card */
+}
+
+.host-stats strong {
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+.host-cpu-chart-container {
+    height: 100px;
+    background-color: var(--chart-bg);
+    padding: 5px;
+    border-radius: 4px;
+    min-width: 0;
+    border: 1px solid var(--border-color);
+}
+
+.host-cpu-chart-container h3 {
+    font-size: 0.9em;
+    color: var(--text-color);
+    margin: 0 0 3px 0;
+    display: flex;
+    justify-content: space-between;
+}
+
+.host-cpu-chart-container .value {
+    color: var(--host-cpu-color);
+    font-weight: 700;
+}
+
+.load-avg-values strong {
+    margin-right: 5px;
+}
+
+/* --- CARDS CONTAINER --- */
+.container-grid {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+
+/* --- CARD STYLE --- */
+.container-card {
+    background-color: var(--card-bg);
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 8px var(--shadow-color);
+    transition: transform 0.15s, box-shadow 0.15s;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border-radius: 6px;
+}
+
+.container-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 10px;
+}
+
+.card-title {
+    font-size: 1.3em;
+    font-weight: 600;
+    color: var(--text-color);
+    max-width: 65%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.status-badge {
+    padding: 3px 8px;
+    font-size: 0.8em;
+    font-weight: bold;
+    text-transform: uppercase;
+    border-radius: 4px;
+    color: var(--card-bg);
+}
+
+.status-running {
+    background-color: var(--success-color);
+}
+
+.status-error {
+    background-color: var(--error-color);
+}
+
+/* --- CHARTS AND STATS (Container) --- */
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    min-width: 0;
+}
+
+.stat-block {
+    padding: 0;
+    min-width: 0;
+}
+
+.stat-label {
+    font-size: 0.8em;
+    color: var(--secondary-text);
+    margin: 0;
+}
+
+.stat-value {
+    font-size: 1.2em;
+    font-weight: 700;
+    margin: 0;
+}
+
+.chart-container {
+    height: 85px;
+    width: 100%;
+    margin-top: 5px;
+    padding: 5px;
+    background-color: var(--chart-bg);
+    border-radius: 4px;
+    min-width: 0;
+    border: 1px solid var(--border-color);
+}
+
+/* --- METADATA --- */
+.metadata {
+    margin-top: 10px;
+    padding-top: 5px;
+    border-top: 1px dashed var(--border-color);
+    font-size: 0.8em;
+    color: var(--secondary-text);
+}
+
+.metadata p {
+    margin: 3px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.metadata p strong {
+    color: var(--text-color);
+    font-weight: 500;
+    max-width: calc(100% - 70px);
+    display: inline-block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+}
+
+.metadata p:nth-child(2) strong {
+    max-width: none;
+}
+
+.cpu-value {
+    color: var(--cpu-color);
+}
+
+.ram-value {
+    color: var(--ram-color);
+}
+
+/* --- LOADER --- */
+.loader {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(0, 123, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: var(--primary-color);
+    animation: spin 1s ease-in-out infinite;
+    vertical-align: middle;
+    margin-left: 10px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

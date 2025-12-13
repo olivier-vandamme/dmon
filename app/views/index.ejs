@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<!--
+ * Dmon - Docker containers monitor
+ * Author : Olivier Vandamme
+ * Copyright (c) 2025 Olivier Vandamme
+ * Licence : MIT
+ -->
+
+<head>
+    <meta charset="UTF-8">
+    <title>
+        <%= title %>
+    </title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+    <div class="header">
+        <h1><i class="fas fa-chart-line"></i>
+            Dmon - Docker containers monitor
+        </h1>
+        <p class="update-info">
+            Realtime monitoring. <span id="last-update">Connecting...</span>
+        </p>
+    </div>
+
+    <div class="host-stats">
+        <div style="display: flex; flex-direction: column; justify-content: center; gap: 10px;">
+            <div>
+                <h2>Host</h2>
+            </div>
+            <h2 id="host-name" style="margin: 0; font-size: 1.4em; color: var(--primary-color);">...</h2>
+            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+
+                <div><i class="fas fa-server"></i> Host Total RAM: <strong id="host-ram-total">...</strong> MiB</div>
+                <div><i class="fas fa-microchip"></i> CPU Cores: <strong id="host-cpu-cores">...</strong></div>
+            </div>
+            <div>
+                <i class="fas fa-tasks"></i> Load Average:
+                <span class="load-avg-values">
+                    <strong id="host-load-1">...</strong> (1m)
+                    <strong id="host-load-5">...</strong> (5m)
+                    <strong id="host-load-15">...</strong> (15m)
+                </span>
+            </div>
+        </div>
+        <div>
+            <h3>Host CPU Usage: <span id="host-cpu-value" class="value">...</span>%</h3>
+            <div class="host-cpu-chart-container">
+                <div id="host-cpu-chart" style="width: 100%; height: 100%;"></div>
+            </div>
+        </div>
+        <div>
+            <h3>Host RAM Usage: <span id="host-ram-val" class="value">...</span>%</h3>
+            <div class="host-cpu-chart-container">
+                <div id="host-ram-chart" style="width: 100%; height: 100%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-grid" id="container-data">
+        <div style="color: var(--secondary-text); padding: 20px;" id="loading-message">
+            Loading data... <div class="loader"></div>
+        </div>
+    </div>
+
+    <script>
+        const maxDataPoints = 60;
+        const charts = {};
+        const historyData = {};
+        let isFirstRender = true;
+
+        // Convert CSS color variables to hex colors for ECharts
+        const colorMap = {
+            'var(--cpu-color)': '#007bff',
+            'var(--ram-color)': '#ffc107',
+            'var(--host-cpu-color)': '#20c997'
+        };
+
+        function getChartOption(color, data) {
+            const mainColor = colorMap[color] || '#007bff';
+            
+            return {
+                animation: false,
+                animationDuration: 1000,
+                animationEasing: 'cubicOut',
+                grid: {
+                    left: '3%',
+                    right: '50px',
+                    top: '8%',
+                    bottom: '12%',
+                    containLabel: false
+                },
+                xAxis: {
+                    type: 'category',
+                    boundaryGap: false,
+                    data: Array(data.length).fill(''),
+                    show: true,
+                    axisLine: { 
+                        show: true,
+                        lineStyle: {
+                            color: 'rgba(0, 0, 0, 0.08)'
+                        }
+                    },
+                    axisTick: { show: false },
+                    axisLabel: { show: false },
+                    splitLine: {
+                        show: true,
+                        lineStyle: {
+                            color: 'rgba(0, 0, 0, 0.05)',
+                            type: 'dashed',
+                            width: 1
+                        }
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    min: 0,
+                    max: 100,
+                    position: 'right',
+                    splitNumber: 4,
+                    axisLine: { 
+                        show: true,
+                        lineStyle: {
+                            color: 'rgba(0, 0, 0, 0.08)'
+                        }
+                    },
+                    axisTick: { show: false },
+                    splitLine: {
+                        show: true,
+                        lineStyle: {
+                            color: 'rgba(0, 0, 0, 0.05)',
+                            type: 'dashed',
+                            width: 1
+                        }
+                    },
+                    axisLabel: {
+                        show: true,
+                        color: '#999',
+                        fontSize: 10,
+                        padding: [0, 5, 0, 0],
+                        formatter: '{value}%',
+                        fontWeight: 500
+                    }
+                },
+                series: [{
+                    type: 'line',
+                    data: data,
+                    smooth: 0.4,
+                    smoothMonotone: 'x',
+                    symbol: 'circle',
+                    symbolSize: 0,
+                    showSymbol: false,
+                    lineStyle: {
+                        color: mainColor,
+                        width: 2.5,
+                        shadowColor: mainColor + '40',
+                        shadowBlur: 8,
+                        shadowOffsetY: 2
+                    },
+                    areaStyle: {
+                        color: {
+                            type: 'linear',
+                            x: 0, y: 0, x2: 0, y2: 1,
+                            colorStops: [
+                                { offset: 0, color: mainColor + '66' },  // 40% opacity
+                                { offset: 0.5, color: mainColor + '33' }, // 20% opacity
+                                { offset: 1, color: mainColor + '0A' }   // 4% opacity
+                            ]
+                        },
+                        shadowColor: mainColor + '20',
+                        shadowBlur: 10
+                    },
+                    emphasis: {
+                        focus: 'series',
+                        lineStyle: {
+                            width: 3
+                        }
+                    }
+                }]
+            };
+        }
+
+        function initializeChart(chartId, color, isHost = false) {
+            const dom = document.getElementById(chartId);
+            if (!dom) return null;
+
+            // Dispose existing chart if any
+            if (charts[chartId]) {
+                charts[chartId].dispose();
+                delete charts[chartId];
+            }
+
+            const storageKey = isHost ? 'host' : chartId.split('-')[0];
+            const dataKey = chartId.includes('cpu') ? 'cpu' : 'ram';
+
+            if (!historyData[storageKey]) {
+                historyData[storageKey] = { cpu: [], ram: [] };
+            }
+
+            const storageArray = historyData[storageKey][dataKey];
+
+            // Initialize ECharts instance
+            const chart = echarts.init(dom);
+            const option = getChartOption(color, storageArray);
+            
+            chart.setOption(option);
+            charts[chartId] = chart;
+            
+            return chart;
+        }
+
+        function updateChart(id, dataKey, newData, color, isHost = false) {
+            let chartId;
+            if (isHost) {
+                chartId = dataKey === 'cpu' ? 'host-cpu-chart' : 'host-ram-chart';
+            } else {
+                chartId = `${id}-${dataKey}`;
+            }
+            const storageKey = isHost ? 'host' : id;
+
+            if (!historyData[storageKey]) {
+                historyData[storageKey] = { cpu: [], ram: [] };
+            }
+
+            const storageArray = historyData[storageKey][dataKey];
+            const valueToAdd = (typeof newData === 'number' && newData >= 0) ? newData : 0;
+
+            storageArray.push(valueToAdd);
+            if (storageArray.length > maxDataPoints) {
+                storageArray.shift();
+            }
+
+            let chart = charts[chartId];
+            if (!chart) {
+                chart = initializeChart(chartId, color, isHost);
+                if (!chart) return;
+            }
+
+            // Calculate dynamic max for CPU charts
+            let yMax = 100;
+            if (dataKey === 'cpu' || isHost) {
+                yMax = Math.max(100, Math.ceil(Math.max(...storageArray, 100) / 100) * 100);
+            }
+
+            // Update chart data
+            chart.setOption({
+                xAxis: {
+                    data: Array(storageArray.length).fill('')
+                },
+                yAxis: {
+                    max: yMax
+                },
+                series: [{
+                    data: storageArray
+                }]
+            });
+        }
+
+        function cleanUpCharts(activeIds) {
+            Object.keys(charts).forEach(chartKey => {
+                const containerId = chartKey.split('-')[0];
+                if (containerId !== 'host' && !activeIds.has(containerId)) {
+                    charts[chartKey].dispose();
+                    delete charts[chartKey];
+                    delete historyData[containerId];
+                }
+            });
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            Object.values(charts).forEach(chart => {
+                if (chart && !chart.isDisposed()) {
+                    chart.resize();
+                }
+            });
+        });
+
+        const eventSource = new EventSource('/stream');
+        const containerGrid = document.getElementById('container-data');
+        const lastUpdateSpan = document.getElementById('last-update');
+        const loadingMessage = document.getElementById('loading-message');
+        let hostTotalMemory = 0;
+
+        eventSource.onmessage = function (event) {
+            const allData = JSON.parse(event.data);
+            const stats = allData.containers;
+            const hostInfo = allData.host || {};
+
+            if (loadingMessage) {
+                loadingMessage.style.display = 'none';
+            }
+
+            if (allData.error) {
+                containerGrid.innerHTML = `<div style="color: var(--error-color); padding: 20px;">${allData.error}</div>`;
+                cleanUpCharts(new Set());
+                return;
+            }
+
+            if (hostInfo.totalMemory) {
+                hostTotalMemory = hostInfo.totalMemory;
+            }
+
+            // Update Host stats
+            const hostCpuDisplay = hostInfo.cpuUsage >= 0 ? hostInfo.cpuUsage.toFixed(1) : 'N/A';
+            if (hostInfo.hostname) document.getElementById('host-name').textContent = hostInfo.hostname;
+            document.getElementById('host-ram-total').textContent = hostInfo.totalMemory || 'N/A';
+            document.getElementById('host-cpu-cores').textContent = hostInfo.cpuCores || 'N/A';
+            document.getElementById('host-cpu-value').textContent = hostCpuDisplay;
+
+            if (hostInfo.loadAverage && hostInfo.loadAverage.length === 3) {
+                document.getElementById('host-load-1').textContent = hostInfo.loadAverage[0].toFixed(2);
+                document.getElementById('host-load-5').textContent = hostInfo.loadAverage[1].toFixed(2);
+                document.getElementById('host-load-15').textContent = hostInfo.loadAverage[2].toFixed(2);
+            } else {
+                document.getElementById('host-load-1').textContent = 'N/A';
+                document.getElementById('host-load-5').textContent = 'N/A';
+                document.getElementById('host-load-15').textContent = 'N/A';
+            }
+
+            if (hostInfo.cpuUsage >= 0) {
+                updateChart('host', 'cpu', hostInfo.cpuUsage, 'var(--host-cpu-color)', true);
+            }
+            if (hostInfo.memoryUsagePercent >= 0) {
+                const memDisplay = hostInfo.memoryUsagePercent.toFixed(1);
+                document.getElementById('host-ram-val').textContent = memDisplay;
+                updateChart('host', 'ram', hostInfo.memoryUsagePercent, 'var(--ram-color)', true);
+            }
+
+            lastUpdateSpan.textContent = ""
+            //lastUpdateSpan.textContent = new Date().toLocaleTimeString('fr-FR', {
+            //    hour12: false,
+            //    second: '2-digit'
+            //});
+
+            const activeContainers = new Set(stats.map(c => c.id));
+            let newCardsHtml = '';
+            let containersToUpdate = [];
+
+            stats.forEach(container => {
+                const statusClass = container.status.includes('Up') || container.status.includes('running')
+                    ? 'status-running'
+                    : 'status-error';
+                const statusText = container.status.includes('Up') || container.status.includes('running')
+                    ? 'Running'
+                    : 'Stopped / Error';
+
+                const ramPercent = container.ramLimit > 0
+                    ? (container.ramUsage / container.ramLimit) * 100
+                    : 0;
+
+                let cardElement = document.getElementById(`card-${container.id}`);
+
+                // Detect if RAM is unlimited (with tolerance for rounding errors)
+                const ramLimitDisplay = (Math.abs(container.ramLimit - hostTotalMemory) < 10)
+                    ? 'Unlimited (Host)'
+                    : `${container.ramLimit} MiB`;
+
+                if (isFirstRender || !cardElement) {
+                    newCardsHtml += `
+                        <div class="container-card" id="card-${container.id}">
+                            <div class="card-header">
+                                <span class="card-title">${container.name}</span>
+                                <span class="status-badge ${statusClass}">${statusText}</span>
+                            </div>
+                            <div class="stats-grid">
+                                <div class="stat-block">
+                                    <p class="stat-label">CPU Usage (Current)</p>
+                                    <p class="stat-value cpu-value" style="color: var(--cpu-color);">${container.cpu.toFixed(2)}%</p>
+                                    <div class="chart-container">
+                                        <div id="${container.id}-cpu" style="width: 100%; height: 100%;"></div>
+                                    </div>
+                                </div>
+                                <div class="stat-block">
+                                    <p class="stat-label">RAM Usage (Current)</p>
+                                    <p class="stat-value ram-value" style="color: var(--ram-color);">${ramPercent.toFixed(1)}%</p>
+                                    <div class="chart-container">
+                                        <div id="${container.id}-ram" style="width: 100%; height: 100%;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="metadata">
+                                <p><strong>Image:</strong> <strong style="max-width: 250px;">${container.image}</strong></p>
+                                <p><strong>RAM:</strong> <strong>${container.ramUsage} MiB / ${ramLimitDisplay}</strong></p>
+                                <p><strong>ID:</strong> <strong>${container.id.substring(0, 12)}</strong></p>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    cardElement.querySelector('.card-title').textContent = container.name;
+                    const statusBadge = cardElement.querySelector('.status-badge');
+                    statusBadge.className = `status-badge ${statusClass}`;
+                    statusBadge.textContent = statusText;
+                    cardElement.querySelector('.cpu-value').textContent = container.cpu.toFixed(2) + '%';
+                    cardElement.querySelector('.ram-value').textContent = ramPercent.toFixed(1) + '%';
+                    cardElement.querySelector('.metadata p:nth-child(1) strong:last-child').textContent = container.image;
+                    cardElement.querySelector('.metadata p:nth-child(2) strong:last-child').textContent = `${container.ramUsage} MiB / ${ramLimitDisplay}`;
+                    cardElement.querySelector('.metadata p:nth-child(3) strong:last-child').textContent = container.id.substring(0, 12);
+                }
+
+                containersToUpdate.push(container);
+            });
+
+            if (isFirstRender) {
+                containerGrid.innerHTML = newCardsHtml;
+                isFirstRender = false;
+                
+                // Initialize charts after DOM is ready
+                setTimeout(() => {
+                    containersToUpdate.forEach(container => {
+                        initializeChart(`${container.id}-cpu`, 'var(--cpu-color)');
+                        initializeChart(`${container.id}-ram`, 'var(--ram-color)');
+                    });
+                }, 100);
+            } else if (newCardsHtml) {
+                containerGrid.insertAdjacentHTML('beforeend', newCardsHtml);
+                
+                // Initialize charts for new containers
+                setTimeout(() => {
+                    const newContainerIds = newCardsHtml.match(/card-([a-f0-9]+)/g);
+                    if (newContainerIds) {
+                        newContainerIds.forEach(match => {
+                            const containerId = match.replace('card-', '');
+                            initializeChart(`${containerId}-cpu`, 'var(--cpu-color)');
+                            initializeChart(`${containerId}-ram`, 'var(--ram-color)');
+                        });
+                    }
+                }, 100);
+            }
+
+            containersToUpdate.forEach(container => {
+                const ramPercent = container.ramLimit > 0
+                    ? (container.ramUsage / container.ramLimit) * 100
+                    : 0;
+                updateChart(container.id, 'cpu', container.cpu, 'var(--cpu-color)');
+                updateChart(container.id, 'ram', ramPercent, 'var(--ram-color)');
+            });
+
+            const currentCardIds = Array.from(containerGrid.children)
+                .map(el => el.id.replace('card-', ''))
+                .filter(id => id);
+
+            currentCardIds.forEach(id => {
+                if (!activeContainers.has(id) && id !== 'loading-message') {
+                    document.getElementById(`card-${id}`)?.remove();
+                }
+            });
+
+            cleanUpCharts(activeContainers);
+        };
+
+        eventSource.onerror = function (err) {
+            console.error("EventSource failed:", err);
+            lastUpdateSpan.textContent = 'Connection error. Retrying...';
+            if (loadingMessage) {
+                loadingMessage.textContent = "Error: Data stream failed. Check server and docker.sock.";
+                loadingMessage.style.display = 'block';
+            }
+        };
+    </script>
+    <div class="footer">©2025 Olivier Vandamme - v<%= version %>
+        <span style="color: var(--primary-color); margin-left: 15px;">Latest: v<%= latestVersion %></span> | 
+		<span><a target="_blank" href="https://dmon.fr">dmon.fr</a></span>
+    </div>
+
+   
+
+</body>
+
+</html>

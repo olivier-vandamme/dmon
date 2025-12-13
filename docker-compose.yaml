@@ -1,0 +1,14 @@
+services:
+  dmon:
+    build: .
+    container_name: Dmon
+    restart: unless-stopped
+    ports:
+      - "10443:443" # External HTTPS
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /proc:/host/proc:ro
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
