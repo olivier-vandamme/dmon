@@ -20,13 +20,21 @@
 </head>
 
 <body>
+
     <div class="header">
-        <h1><i class="fas fa-chart-line"></i>
-            Dmon - Docker containers monitor
+        <h1 style="display: flex; justify-content: space-between; align-items: center;">
+            <span><i class="fas fa-chart-line"></i> Dmon - Docker containers monitor</span>
+            <a id="update-link" href="https://dmon.fr" target="_blank" style="text-decoration: none; display: <%= needUpdate ? 'inline-block' : 'none' %>;">
+                <button id="update-button" style="background-color: #007bff; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 5px;">
+                    Mise à jour disponible<%= needUpdate ? ` vers v${latestVersion}` : '' %>
+                </button>
+            </a>
         </h1>
         <p class="update-info">
             Realtime monitoring. <span id="last-update">Connecting...</span>
         </p>
+
+
     </div>
 
     <div class="host-stats">
@@ -334,10 +342,6 @@
             }
 
             lastUpdateSpan.textContent = ""
-            //lastUpdateSpan.textContent = new Date().toLocaleTimeString('fr-FR', {
-            //    hour12: false,
-            //    second: '2-digit'
-            //});
 
             const activeContainers = new Set(stats.map(c => c.id));
             let newCardsHtml = '';
@@ -463,6 +467,24 @@
                 loadingMessage.style.display = 'block';
             }
         };
+
+        // Periodic update check every 2 hours
+        setInterval(async () => {
+            try {
+                const response = await fetch('/check-update');
+                const data = await response.json();
+                const link = document.getElementById('update-link');
+                const button = document.getElementById('update-button');
+                if (data.needUpdate) {
+                    link.style.display = 'inline-block';
+                    button.textContent = `Mise à jour disponible vers v${data.latestVersion}`;
+                } else {
+                    link.style.display = 'none';
+                }
+            } catch (e) {
+                console.error('Error checking update:', e);
+            }
+        }, 7200000);
     </script>
     <div class="footer">©2025 Olivier Vandamme - v<%= version %>
         <span style="color: var(--primary-color); margin-left: 15px;">Latest: v<%= latestVersion %></span> | 

@@ -13,7 +13,6 @@ const path = require('path');
 const fs = require('fs');
 const https = require('https');
 const si = require('systeminformation');
-//const fetch = require('node-fetch');
 
 const app = express();
 const port = 443; // HTTPS Port
@@ -199,12 +198,10 @@ async function getLatestVersion() {
 }
 
 // --- ROUTES ---
-//app.get('/', (req, res) => res.render('index', { title: 'DCmon - Docker Containers monitor' }));
 app.get('/', async (req, res) => {
     const host = await getHostStats();
     const latestVersion = await getLatestVersion();
     const needUpdate = VERSION != latestVersion;
-    //const latestVersion="test";
     
     console.log("Rendering index with latestVersion:", latestVersion);
     
@@ -216,7 +213,11 @@ app.get('/', async (req, res) => {
     });
 });
 
-
+app.get('/check-update', async (req, res) => {
+    const latestVersion = await getLatestVersion();
+    const needUpdate = VERSION != latestVersion;
+    res.json({ needUpdate, latestVersion });
+});
 
 // Server-Sent Events (SSE) stream for real-time updates
 app.get('/stream', (req, res) => {

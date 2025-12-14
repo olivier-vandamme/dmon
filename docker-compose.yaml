@@ -4,11 +4,11 @@ services:
     container_name: Dmon
     restart: unless-stopped
     ports:
-      - "10443:443" # External HTTPS
+      - "10443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /proc:/host/proc:ro
-    ulimits:
-      nofile:
-        soft: 65536
-        hard: 65536
+
+# Uncomment the following line if you have placed your own certificates in the /certs directory
+# Leave commented if using self-generated certificates
+    #  - ./certs:/app/certs:ro
