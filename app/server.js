@@ -4,7 +4,7 @@
  * Copyright (c) 2025 Olivier Vandamme
  * Licence : MIT
  */
-const VERSION = '0.0.1'; // Application Version
+const VERSION = '0.1.0'; // Application Version
 
 const express = require('express');
 const Docker = require('dockerode');
