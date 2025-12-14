@@ -29,24 +29,16 @@ Express
 
 Dockerode
    - Version: 4.0.2
-   - License: Apache-2.0 License
+   - License: MIT License
    - Source: https://github.com/apocas/dockerode
-   - Copyright (c) 2024 Pedro Dias
 
 EJS
    - Version: 3.1.9
-   - License: Apache-2.0 License
+   - License: MIT License
    - Source: https://ejs.co/
-   - Copyright (c) 2112 Matthew Eernisse (mde@fleegix.org)
 
 Systeminformation
-   - Version: latest (installed via npm)
+   - Version: 5.21.0 (installed via npm)
    - License: MIT License
    - Source: https://github.com/sebhildebrandt/systeminformation
    - Copyright (c) Sebastian Hildebrandt
-
-Apache ECharts
-   - Version: 5.4.3
-   - License: Apache-2.0 License
-   - Source: https://echarts.apache.org/
-   - Copyright (c) 2017-2023 The Apache Software Foundation
