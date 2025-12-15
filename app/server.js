@@ -86,9 +86,16 @@ function calculateCpuPercent(stats, prev) {
 
     const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - (prev.cpu_stats.cpu_usage.total_usage || 0);
     const sysDelta = stats.cpu_stats.system_cpu_usage - (prev.cpu_stats.system_cpu_usage || 0);
-    const cpuCount = stats.cpu_stats.online_cpus || os.cpus().length;
 
-    return sysDelta > 0 && cpuDelta > 0 ? (cpuDelta / sysDelta) * cpuCount * 100 : 0;
+    // Normalize CPU usage to a 0-100% scale (percentage of total host capacity)
+    // Docker's CLI multiplies by the number of CPUs, resulting in values >100 when
+    // all CPUs are used (e.g., 8 CPUs => 800%). We want 100% to mean full host usage.
+    let percent = sysDelta > 0 && cpuDelta > 0 ? (cpuDelta / sysDelta) * 100 : 0;
+
+    // Clamp to [0, 100]
+    if (percent < 0) percent = 0;
+    if (percent > 100) percent = 100;
+    return percent;
 }
 
 /**
@@ -260,6 +267,14 @@ const options = {
     cert: fs.readFileSync(path.join(__dirname, 'certs', 'cert.pem'))
 };
 
-https.createServer(options, app).listen(port, '0.0.0.0', () => {
-    console.log(`HTTPS Server started on https://0.0.0.0:${port}`);
-});
+// Only start the server when running this file directly (avoid starting during tests)
+if (require.main === module) {
+    https.createServer(options, app).listen(port, '0.0.0.0', () => {
+        console.log(`HTTPS Server started on https://0.0.0.0:${port}`);
+    });
+}
+
+// Export functions for testing
+module.exports = {
+    calculateCpuPercent
+};

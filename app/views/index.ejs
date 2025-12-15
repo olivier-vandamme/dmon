@@ -130,6 +130,8 @@
                     type: 'value',
                     min: 0,
                     max: 100,
+                    // Force ticks so the top label shows 100%
+                    interval: 25,
                     position: 'right',
                     splitNumber: 4,
                     axisLine: { 
@@ -237,7 +239,9 @@
             }
 
             const storageArray = historyData[storageKey][dataKey];
-            const valueToAdd = (typeof newData === 'number' && newData >= 0) ? newData : 0;
+            // Ensure values are numbers, non-negative and capped at 100%
+            let valueToAdd = (typeof newData === 'number' && newData >= 0) ? newData : 0;
+            valueToAdd = Math.min(100, valueToAdd);
 
             storageArray.push(valueToAdd);
             if (storageArray.length > maxDataPoints) {
@@ -250,11 +254,8 @@
                 if (!chart) return;
             }
 
-            // Calculate dynamic max for CPU charts
-            let yMax = 100;
-            if (dataKey === 'cpu' || isHost) {
-                yMax = Math.max(100, Math.ceil(Math.max(...storageArray, 100) / 100) * 100);
-            }
+            // Keep Y axis maximum fixed to 100% and enforce tick interval
+            const yMax = 100;
 
             // Update chart data
             chart.setOption({
