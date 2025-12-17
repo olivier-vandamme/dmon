@@ -6,7 +6,7 @@ services:
     ports:
       - "10443:443"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /proc:/host/proc:ro
 
 # Uncomment the following line if you have placed your own certificates in the /certs directory
