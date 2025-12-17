@@ -17,26 +17,17 @@ RUN mkdir certs && \
 FROM node:24-alpine
 WORKDIR /app
 
-# Créer un utilisateur et un groupe non-root
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-
-# Copier les dépendances et installer
+# Copy dependencies and install
 COPY package*.json ./
 RUN npm install --only=production
 
-# Copier le code applicatif
+# Copy application code
 COPY app/ .
 
-# Copier les certificats générés depuis le builder
+# Copy generated certificates from builder
 COPY --from=builder /app/certs ./certs
 
-# Changer les permissions pour l'utilisateur dédié
-RUN chown -R appuser:appgroup /app
-
-# Exécuter en tant qu'utilisateur non-root
-USER appuser
-
-# Exposer le port HTTPS
+# Expose HTTPS port
 EXPOSE 443
 
 CMD ["npm", "start"]
