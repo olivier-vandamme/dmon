@@ -1,14 +1,71 @@
+# -------------------------------------------------------------------
+# docker-compose.yml - Security setup
+# -------------------------------------------------------------------
+# - Proxy docker-socket-proxy: inserts a filter between Dmon and
+#   the Docker socket, mounted read-only.
+# - Docker socket in read-only mode: prevents destructive actions,
+#   limits access to container read-only operations.
+# - Reduced rights in Dmon:
+#   * read_only: true -> filesystem in read-only mode
+#   * tmpfs: /tmp -> prevents persistent writes to disk
+#   * cap_drop: ALL -> removes all unnecessary Linux capabilities
+#   * no-new-privileges -> forbids privilege escalation
+# - /proc mounted read-only: allows metrics collection
+#   without exposing write permissions.
+# - Dedicated internal network: isolates communications between Dmon and the proxy.
+# - Certificate mounting option: allows using your own
+#   certificates instead of automatically generated ones.
+# -------------------------------------------------------------------
+
 services:
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # Docker socket mounted read-only
+    environment:
+      CONTAINERS: 1            # Allow only container read access
+      CONTAINERS_CREATE: 0     # Forbid container creation
+      CONTAINERS_DELETE: 0     # Forbid container deletion
+      CONTAINERS_UPDATE: 0     # Forbid container modification
+      IMAGES: 0                # Forbid access to images
+      NETWORKS: 0              # Forbid access to networks
+      VOLUMES: 0               # Forbid access to volumes
+    networks:
+      - internal               # Isolated internal network
+
+
+
   dmon:
     build: .
     container_name: Dmon
     restart: unless-stopped
     ports:
-      - "10443:443"
+      - "10443:443"            # Expose internal port 443 on host port 10443
+    networks:
+      - internal               # Communication only via internal network
+    environment:
+      DOCKER_HOST: tcp://docker-socket-proxy:2375   # Dmon uses the proxy instead of direct socket
+    read_only: true            # Filesystem in read-only mode
+    tmpfs:
+      - /tmp                   # Temporary directory in memory (not on disk)
+    cap_drop:
+      - ALL                    # Remove all unnecessary Linux capabilities
+    security_opt:
+      - no-new-privileges:true # Forbid privilege escalation
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /proc:/host/proc:ro
+      - /proc:/host/proc:ro    # /proc mounted read-only for metrics
 
-# Uncomment the following line if you have placed your own certificates in the /certs directory
-# Leave commented if using self-generated certificates
-    #  - ./certs:/app/certs:ro
+      # -----------------------------------------------------------------
+      # - Uncomment the following line if you want to use your own
+      # certificates placed in ./certs on the host.
+      # Important!: Files must be named key.pem and cert.pem
+      #
+      # - Leave commented if you use the self-signed certificates
+      # generated at build time.
+      # -----------------------------------------------------------------
+      #- ./certs:/app/certs:ro
+
+networks:
+  internal:
+    driver: bridge           # Isolated internal network
