@@ -33,8 +33,7 @@ services:
       VOLUMES: 0               # Forbid access to volumes
     networks:
       - internal               # Isolated internal network
-
-
+# -------------------------------------------------------------------
 
   dmon:
     build: .
@@ -53,18 +52,20 @@ services:
       - ALL                    # Remove all unnecessary Linux capabilities
     security_opt:
       - no-new-privileges:true # Forbid privilege escalation
-    volumes:
-      - /proc:/host/proc:ro    # /proc mounted read-only for metrics
 
       # -----------------------------------------------------------------
-      # - Uncomment the following line if you want to use your own
+      # - Uncomment the following 2 lines if you want to use your own
       # certificates placed in ./certs on the host.
       # Important!: Files must be named key.pem and cert.pem
       #
       # - Leave commented if you use the self-signed certificates
       # generated at build time.
       # -----------------------------------------------------------------
+
+    #volumes:
       #- ./certs:/app/certs:ro
+
+      # -----------------------------------------------------------------
 
 networks:
   internal:

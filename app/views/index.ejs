@@ -42,7 +42,7 @@
             <div>
                 <h2>Host</h2>
             </div>
-            <h2 id="host-name" style="margin: 0; font-size: 1.4em; color: var(--primary-color);">...</h2>
+            <!--<h2 id="host-name" style="margin: 0; font-size: 1.4em; color: var(--primary-color);">...</h2>-->
             <div style="display: flex; gap: 20px; flex-wrap: wrap;">
 
                 <div><i class="fas fa-server"></i> Host Total RAM: <strong id="host-ram-total">...</strong> MiB</div>
@@ -78,6 +78,9 @@
     </div>
 
     <script>
+        // Keep up to 60 samples in charts (with ~1s SSE sends this represents ~60s history).
+        // Note: server sends SSE every 1s but Docker stats are cached server-side every 2s,
+        // so per-container stats may effectively update at most every 2s.
         const maxDataPoints = 60;
         const charts = {};
         const historyData = {};
@@ -291,6 +294,8 @@
             });
         });
 
+        // Server-Sent Events (SSE) stream: server writes data every 1000ms (1s).
+        // Docker stats are cached server-side for 2000ms, so container stats may update only every 2s.
         const eventSource = new EventSource('/stream');
         const containerGrid = document.getElementById('container-data');
         const lastUpdateSpan = document.getElementById('last-update');
@@ -318,7 +323,7 @@
 
             // Update Host stats
             const hostCpuDisplay = hostInfo.cpuUsage >= 0 ? hostInfo.cpuUsage.toFixed(1) : 'N/A';
-            if (hostInfo.hostname) document.getElementById('host-name').textContent = hostInfo.hostname;
+            //if (hostInfo.hostname) document.getElementById('host-name').textContent = hostInfo.hostname;
             document.getElementById('host-ram-total').textContent = hostInfo.totalMemory || 'N/A';
             document.getElementById('host-cpu-cores').textContent = hostInfo.cpuCores || 'N/A';
             document.getElementById('host-cpu-value').textContent = hostCpuDisplay;
@@ -469,7 +474,7 @@
             }
         };
 
-        // Periodic update check every 2 hours
+        // Periodic update check every 2 hours (7200000 ms)
         setInterval(async () => {
             try {
                 const response = await fetch('/check-update');

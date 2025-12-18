@@ -2,6 +2,16 @@
 
 All notable changes are listed below. Minimal, bilingual entries (English / Français).
 
+## [1.2.0] - 2025-12-18
+
+EN:
+- Fix: minor bug fixes and documentation clarifications (note about 80 → 443 redirect).
+- Security: pin base images by digest.
+
+FR:
+- Correction : petites corrections et clarifications de la documentation (note sur la redirection 80 → 443).
+- Sécurité : verrouillage des images par digest.
+
 ## [1.1.0] - 2025-12-17
 
 EN:

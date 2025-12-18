@@ -4,7 +4,7 @@
  * Copyright (c) 2025 Olivier Vandamme
  * Licence : MIT
  */
-const VERSION = '1.1.1'; // Application Version
+const VERSION = '1.2.0'; // Application Version
 
 const express = require('express');
 const Docker = require('dockerode');
@@ -164,6 +164,7 @@ async function getDockerStats() {
  */
 async function getDockerStatsCached() {
     const now = Date.now();
+    // Cache Docker stats for 2000ms to avoid overloading the Docker daemon.
     if (lastStats && now - lastStatsTime < 2000) return lastStats;
     lastStats = await getDockerStats();
     lastStatsTime = now;
@@ -234,6 +235,7 @@ app.get('/stream', (req, res) => {
         'Connection': 'keep-alive'
     });
 
+    // SSE client reconnection retry in ms (client will wait this long before retrying on error)
     res.write("retry: 10000\n");
 
     const sendData = async () => {
@@ -252,7 +254,9 @@ app.get('/stream', (req, res) => {
     // Send data immediately upon connection
     sendData();
 
-    const interval = setInterval(sendData, 1000);
+    // Send data over SSE every 2000ms (2s).
+    // Note: Docker stats are cached with a 2000ms TTL, so container stats may only be refreshed every ~2s.
+    const interval = setInterval(sendData, 2000);
 
     req.on('close', () => {
         clearInterval(interval);
