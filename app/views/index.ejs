@@ -296,19 +296,25 @@
 
         // Server-Sent Events (SSE) stream: server writes data every 1000ms (1s).
         // Docker stats are cached server-side for 2000ms, so container stats may update only every 2s.
-        const eventSource = new EventSource('/stream');
+        // SSE management with reconnection + cache restore
+        let eventSource = null;
         const containerGrid = document.getElementById('container-data');
         const lastUpdateSpan = document.getElementById('last-update');
         const loadingMessage = document.getElementById('loading-message');
         let hostTotalMemory = 0;
 
-        eventSource.onmessage = function (event) {
-            const allData = JSON.parse(event.data);
-            const stats = allData.containers;
+        // Central render function: reuse for live SSE and cached restore
+        function renderAllData(allData, isFromCache = false) {
+            const stats = allData.containers || [];
             const hostInfo = allData.host || {};
 
-            if (loadingMessage) {
+            if (loadingMessage && !isFromCache) {
                 loadingMessage.style.display = 'none';
+            } else if (loadingMessage && isFromCache) {
+                // show that data is from cache briefly
+                loadingMessage.style.display = 'block';
+                loadingMessage.textContent = 'Restored from cache — updating...';
+                setTimeout(() => loadingMessage.style.display = 'none', 1000);
             }
 
             if (allData.error) {
@@ -463,16 +469,76 @@
             });
 
             cleanUpCharts(activeContainers);
-        };
+        }
 
-        eventSource.onerror = function (err) {
-            console.error("EventSource failed:", err);
-            lastUpdateSpan.textContent = 'Connection error. Retrying...';
-            if (loadingMessage) {
-                loadingMessage.textContent = "Error: Data stream failed. Check server and docker.sock.";
-                loadingMessage.style.display = 'block';
+        // SSE reconnection logic with exponential backoff
+        let sseReconnectDelay = 1000; // 1s
+        const MAX_SSE_DELAY = 30000; // 30s
+        let sseReconnectTimer = null;
+
+        function connectEventSource() {
+            if (eventSource) {
+                try { eventSource.close(); } catch (e) {}
             }
-        };
+
+            eventSource = new EventSource('/stream');
+
+            eventSource.onmessage = function (event) {
+                const allData = JSON.parse(event.data);
+                renderAllData(allData);
+
+                // persist last data for fast restore
+                try {
+                    localStorage.setItem('dmon:lastSSE', JSON.stringify(allData));
+                } catch (e) {
+                    // ignore storage failures
+                }
+
+                // Reset backoff on successful message
+                sseReconnectDelay = 1000;
+                if (sseReconnectTimer) { clearTimeout(sseReconnectTimer); sseReconnectTimer = null; }
+            };
+
+            eventSource.onerror = function (err) {
+                console.error("EventSource failed:", err);
+                lastUpdateSpan.textContent = 'Connection error. Retrying...';
+                if (loadingMessage) {
+                    loadingMessage.textContent = "Error: Data stream failed. Check server and docker.sock.";
+                    loadingMessage.style.display = 'block';
+                }
+
+                // Try manual reconnect with exponential backoff
+                if (!sseReconnectTimer) {
+                    sseReconnectTimer = setTimeout(() => {
+                        connectEventSource();
+                        sseReconnectTimer = null;
+                        sseReconnectDelay = Math.min(MAX_SSE_DELAY, sseReconnectDelay * 2);
+                    }, sseReconnectDelay);
+                }
+            };
+        }
+
+        // Try to restore from cache immediately for fast UI
+        try {
+            const cachedRaw = localStorage.getItem('dmon:lastSSE');
+            if (cachedRaw) {
+                const cached = JSON.parse(cachedRaw);
+                renderAllData(cached, true);
+            }
+        } catch (e) { /* ignore parse errors */ }
+
+        // Handle BFCache restores
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                try {
+                    const cachedRaw = localStorage.getItem('dmon:lastSSE');
+                    if (cachedRaw) renderAllData(JSON.parse(cachedRaw), true);
+                } catch (e) {}
+            }
+        });
+
+        // Start SSE
+        connectEventSource();
 
         // Periodic update check every 2 hours (7200000 ms)
         setInterval(async () => {
@@ -491,6 +557,13 @@
                 console.error('Error checking update:', e);
             }
         }, 7200000);
+
+        // Register Service Worker for offline/app-shell caching
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('ServiceWorker registered:', reg.scope))
+                .catch(err => console.warn('SW registration failed:', err));
+        }
     </script>
     <div class="footer">©2025 Olivier Vandamme - v<%= version %>
         <span style="color: var(--primary-color); margin-left: 15px;">Latest: v<%= latestVersion %></span> | 
