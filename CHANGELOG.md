@@ -2,6 +2,20 @@
 
 All notable changes are listed below. Minimal, bilingual entries (English / Français).
 
+## [1.3.0] - 2025-12-21
+
+EN:
+- Docs: Add standardized file headers to server and frontend files; add/expand JSDoc comments for functions and constants across frontend JS for better clarity and maintainability.
+- Intl: Translate internal comments from French to English across frontend and server files (e.g., `charts.js`, `core.js`, `renderer.js`, `lifecycle.js`, `sw.js`, `server.js`, `views/index.ejs`).
+- Code: Add JSDoc for top-level constants and state, clarify resize handler and history utilities, and document chart option helpers.
+- Misc: Clarify Service Worker comments and add header metadata.
+
+FR:
+- Docs : Ajout d'en‑têtes standardisés dans les fichiers serveur et frontend ; ajout/extension des commentaires JSDoc pour les fonctions et constantes dans les fichiers JS frontend pour une meilleure lisibilité et maintenabilité.
+- Intl : Traduction des commentaires internes du français vers l'anglais dans les fichiers frontend et serveur (ex. `charts.js`, `core.js`, `renderer.js`, `lifecycle.js`, `sw.js`, `server.js`, `views/index.ejs`).
+- Code : Ajout de JSDoc pour les constantes et l'état global, clarification du gestionnaire de redimensionnement et des utilitaires d'historique, documentation des options de chart.
+- Divers : Clarification des commentaires du Service Worker et ajout des métadonnées d'en‑tête.
+
 ## [1.2.0] - 2025-12-18
 
 EN:

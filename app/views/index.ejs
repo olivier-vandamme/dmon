@@ -1,12 +1,18 @@
+<!--
+ * index.ejs
+ *
+ * Description : Main view (HTML template) of the Dmon application.
+ * Project     : Dmon - Docker containers monitor
+ * Author      : Olivier Vandamme
+ * Copyright   : (c) 2025 Olivier Vandamme
+ * License     : MIT (see the LICENSE file at project root)
+ *
+ * Notes :
+ * - EJS template rendered server-side.
+ * - Loads scripts: core.js, charts.js, renderer.js, lifecycle.js.
+ -->
 <!DOCTYPE html>
 <html lang="fr">
-
-<!--
- * Dmon - Docker containers monitor
- * Author : Olivier Vandamme
- * Copyright (c) 2025 Olivier Vandamme
- * Licence : MIT
- -->
 
 <head>
     <meta charset="UTF-8">
@@ -14,8 +20,12 @@
         <%= title %>
     </title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js" as="script">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
     <link rel="stylesheet" href="/css/style.css">
 </head>
 
@@ -42,29 +52,27 @@
             <div>
                 <h2>Host</h2>
             </div>
-            <!--<h2 id="host-name" style="margin: 0; font-size: 1.4em; color: var(--primary-color);">...</h2>-->
             <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-
-                <div><i class="fas fa-server"></i> Host Total RAM: <strong id="host-ram-total">...</strong> MiB</div>
-                <div><i class="fas fa-microchip"></i> CPU Cores: <strong id="host-cpu-cores">...</strong></div>
+                <div><i class="fas fa-server"></i> Host Total RAM: <strong id="host-ram-total"><%= host.totalMemory %></strong> MiB</div>
+                <div><i class="fas fa-microchip"></i> CPU Cores: <strong id="host-cpu-cores"><%= host.cpuCores %></strong></div>
             </div>
             <div>
                 <i class="fas fa-tasks"></i> Load Average:
                 <span class="load-avg-values">
-                    <strong id="host-load-1">...</strong> (1m)
-                    <strong id="host-load-5">...</strong> (5m)
-                    <strong id="host-load-15">...</strong> (15m)
+                    <strong id="host-load-1"><%= host.loadAverage[0].toFixed(2) %></strong> (1m)
+                    <strong id="host-load-5"><%= host.loadAverage[1].toFixed(2) %></strong> (5m)
+                    <strong id="host-load-15"><%= host.loadAverage[2].toFixed(2) %></strong> (15m)
                 </span>
             </div>
         </div>
         <div>
-            <h3>Host CPU Usage: <span id="host-cpu-value" class="value">...</span>%</h3>
+            <h3>Host CPU Usage: <span id="host-cpu-value" class="value"><%= host.cpuUsage.toFixed(1) %></span>%</h3>
             <div class="host-cpu-chart-container">
                 <div id="host-cpu-chart" style="width: 100%; height: 100%;"></div>
             </div>
         </div>
         <div>
-            <h3>Host RAM Usage: <span id="host-ram-val" class="value">...</span>%</h3>
+            <h3>Host RAM Usage: <span id="host-ram-val" class="value"><%= host.memoryUsagePercent.toFixed(1) %></span>%</h3>
             <div class="host-cpu-chart-container">
                 <div id="host-ram-chart" style="width: 100%; height: 100%;"></div>
             </div>
@@ -77,501 +85,20 @@
         </div>
     </div>
 
-    <script>
-        // Keep up to 60 samples in charts (with ~1s SSE sends this represents ~60s history).
-        // Note: server sends SSE every 1s but Docker stats are cached server-side every 2s,
-        // so per-container stats may effectively update at most every 2s.
-        const maxDataPoints = 60;
-        const charts = {};
-        const historyData = {};
-        let isFirstRender = true;
+    <!-- Load ECharts async to not block initial render -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js" async id="echarts-script"></script>
 
-        // Convert CSS color variables to hex colors for ECharts
-        const colorMap = {
-            'var(--cpu-color)': '#007bff',
-            'var(--ram-color)': '#ffc107',
-            'var(--host-cpu-color)': '#20c997'
-        };
 
-        function getChartOption(color, data) {
-            const mainColor = colorMap[color] || '#007bff';
-            
-            return {
-                animation: false,
-                animationDuration: 1000,
-                animationEasing: 'cubicOut',
-                grid: {
-                    left: '3%',
-                    right: '50px',
-                    top: '8%',
-                    bottom: '12%',
-                    containLabel: false
-                },
-                xAxis: {
-                    type: 'category',
-                    boundaryGap: false,
-                    data: Array(data.length).fill(''),
-                    show: true,
-                    axisLine: { 
-                        show: true,
-                        lineStyle: {
-                            color: 'rgba(0, 0, 0, 0.08)'
-                        }
-                    },
-                    axisTick: { show: false },
-                    axisLabel: { show: false },
-                    splitLine: {
-                        show: true,
-                        lineStyle: {
-                            color: 'rgba(0, 0, 0, 0.05)',
-                            type: 'dashed',
-                            width: 1
-                        }
-                    }
-                },
-                yAxis: {
-                    type: 'value',
-                    min: 0,
-                    max: 100,
-                    // Force ticks so the top label shows 100%
-                    interval: 25,
-                    position: 'right',
-                    splitNumber: 4,
-                    axisLine: { 
-                        show: true,
-                        lineStyle: {
-                            color: 'rgba(0, 0, 0, 0.08)'
-                        }
-                    },
-                    axisTick: { show: false },
-                    splitLine: {
-                        show: true,
-                        lineStyle: {
-                            color: 'rgba(0, 0, 0, 0.05)',
-                            type: 'dashed',
-                            width: 1
-                        }
-                    },
-                    axisLabel: {
-                        show: true,
-                        color: '#999',
-                        fontSize: 10,
-                        padding: [0, 5, 0, 0],
-                        formatter: '{value}%',
-                        fontWeight: 500
-                    }
-                },
-                series: [{
-                    type: 'line',
-                    data: data,
-                    smooth: 0.4,
-                    smoothMonotone: 'x',
-                    symbol: 'circle',
-                    symbolSize: 0,
-                    showSymbol: false,
-                    lineStyle: {
-                        color: mainColor,
-                        width: 2.5,
-                        shadowColor: mainColor + '40',
-                        shadowBlur: 8,
-                        shadowOffsetY: 2
-                    },
-                    areaStyle: {
-                        color: {
-                            type: 'linear',
-                            x: 0, y: 0, x2: 0, y2: 1,
-                            colorStops: [
-                                { offset: 0, color: mainColor + '66' },  // 40% opacity
-                                { offset: 0.5, color: mainColor + '33' }, // 20% opacity
-                                { offset: 1, color: mainColor + '0A' }   // 4% opacity
-                            ]
-                        },
-                        shadowColor: mainColor + '20',
-                        shadowBlur: 10
-                    },
-                    emphasis: {
-                        focus: 'series',
-                        lineStyle: {
-                            width: 3
-                        }
-                    }
-                }]
-            };
-        }
+    <script src="/js/core.js"></script>
+    <script src="/js/charts.js"></script>
+    <script src="/js/renderer.js"></script>
+    <script src="/js/lifecycle.js"></script>
 
-        function initializeChart(chartId, color, isHost = false) {
-            const dom = document.getElementById(chartId);
-            if (!dom) return null;
 
-            // Dispose existing chart if any
-            if (charts[chartId]) {
-                charts[chartId].dispose();
-                delete charts[chartId];
-            }
-
-            const storageKey = isHost ? 'host' : chartId.split('-')[0];
-            const dataKey = chartId.includes('cpu') ? 'cpu' : 'ram';
-
-            if (!historyData[storageKey]) {
-                historyData[storageKey] = { cpu: [], ram: [] };
-            }
-
-            const storageArray = historyData[storageKey][dataKey];
-
-            // Initialize ECharts instance
-            const chart = echarts.init(dom);
-            const option = getChartOption(color, storageArray);
-            
-            chart.setOption(option);
-            charts[chartId] = chart;
-            
-            return chart;
-        }
-
-        function updateChart(id, dataKey, newData, color, isHost = false) {
-            let chartId;
-            if (isHost) {
-                chartId = dataKey === 'cpu' ? 'host-cpu-chart' : 'host-ram-chart';
-            } else {
-                chartId = `${id}-${dataKey}`;
-            }
-            const storageKey = isHost ? 'host' : id;
-
-            if (!historyData[storageKey]) {
-                historyData[storageKey] = { cpu: [], ram: [] };
-            }
-
-            const storageArray = historyData[storageKey][dataKey];
-            // Ensure values are numbers, non-negative and capped at 100%
-            let valueToAdd = (typeof newData === 'number' && newData >= 0) ? newData : 0;
-            valueToAdd = Math.min(100, valueToAdd);
-
-            storageArray.push(valueToAdd);
-            if (storageArray.length > maxDataPoints) {
-                storageArray.shift();
-            }
-
-            let chart = charts[chartId];
-            if (!chart) {
-                chart = initializeChart(chartId, color, isHost);
-                if (!chart) return;
-            }
-
-            // Keep Y axis maximum fixed to 100% and enforce tick interval
-            const yMax = 100;
-
-            // Update chart data
-            chart.setOption({
-                xAxis: {
-                    data: Array(storageArray.length).fill('')
-                },
-                yAxis: {
-                    max: yMax
-                },
-                series: [{
-                    data: storageArray
-                }]
-            });
-        }
-
-        function cleanUpCharts(activeIds) {
-            Object.keys(charts).forEach(chartKey => {
-                const containerId = chartKey.split('-')[0];
-                if (containerId !== 'host' && !activeIds.has(containerId)) {
-                    charts[chartKey].dispose();
-                    delete charts[chartKey];
-                    delete historyData[containerId];
-                }
-            });
-        }
-
-        // Handle window resize
-        window.addEventListener('resize', function() {
-            Object.values(charts).forEach(chart => {
-                if (chart && !chart.isDisposed()) {
-                    chart.resize();
-                }
-            });
-        });
-
-        // Server-Sent Events (SSE) stream: server writes data every 1000ms (1s).
-        // Docker stats are cached server-side for 2000ms, so container stats may update only every 2s.
-        // SSE management with reconnection + cache restore
-        let eventSource = null;
-        const containerGrid = document.getElementById('container-data');
-        const lastUpdateSpan = document.getElementById('last-update');
-        const loadingMessage = document.getElementById('loading-message');
-        let hostTotalMemory = 0;
-
-        // Central render function: reuse for live SSE and cached restore
-        function renderAllData(allData, isFromCache = false) {
-            const stats = allData.containers || [];
-            const hostInfo = allData.host || {};
-
-            if (loadingMessage && !isFromCache) {
-                loadingMessage.style.display = 'none';
-            } else if (loadingMessage && isFromCache) {
-                // show that data is from cache briefly
-                loadingMessage.style.display = 'block';
-                loadingMessage.textContent = 'Restored from cache — updating...';
-                setTimeout(() => loadingMessage.style.display = 'none', 1000);
-            }
-
-            if (allData.error) {
-                containerGrid.innerHTML = `<div style="color: var(--error-color); padding: 20px;">${allData.error}</div>`;
-                cleanUpCharts(new Set());
-                return;
-            }
-
-            if (hostInfo.totalMemory) {
-                hostTotalMemory = hostInfo.totalMemory;
-            }
-
-            // Update Host stats
-            const hostCpuDisplay = hostInfo.cpuUsage >= 0 ? hostInfo.cpuUsage.toFixed(1) : 'N/A';
-            //if (hostInfo.hostname) document.getElementById('host-name').textContent = hostInfo.hostname;
-            document.getElementById('host-ram-total').textContent = hostInfo.totalMemory || 'N/A';
-            document.getElementById('host-cpu-cores').textContent = hostInfo.cpuCores || 'N/A';
-            document.getElementById('host-cpu-value').textContent = hostCpuDisplay;
-
-            if (hostInfo.loadAverage && hostInfo.loadAverage.length === 3) {
-                document.getElementById('host-load-1').textContent = hostInfo.loadAverage[0].toFixed(2);
-                document.getElementById('host-load-5').textContent = hostInfo.loadAverage[1].toFixed(2);
-                document.getElementById('host-load-15').textContent = hostInfo.loadAverage[2].toFixed(2);
-            } else {
-                document.getElementById('host-load-1').textContent = 'N/A';
-                document.getElementById('host-load-5').textContent = 'N/A';
-                document.getElementById('host-load-15').textContent = 'N/A';
-            }
-
-            if (hostInfo.cpuUsage >= 0) {
-                updateChart('host', 'cpu', hostInfo.cpuUsage, 'var(--host-cpu-color)', true);
-            }
-            if (hostInfo.memoryUsagePercent >= 0) {
-                const memDisplay = hostInfo.memoryUsagePercent.toFixed(1);
-                document.getElementById('host-ram-val').textContent = memDisplay;
-                updateChart('host', 'ram', hostInfo.memoryUsagePercent, 'var(--ram-color)', true);
-            }
-
-            lastUpdateSpan.textContent = ""
-
-            const activeContainers = new Set(stats.map(c => c.id));
-            let newCardsHtml = '';
-            let containersToUpdate = [];
-
-            stats.forEach(container => {
-                const statusClass = container.status.includes('Up') || container.status.includes('running')
-                    ? 'status-running'
-                    : 'status-error';
-                const statusText = container.status.includes('Up') || container.status.includes('running')
-                    ? 'Running'
-                    : 'Stopped / Error';
-
-                const ramPercent = container.ramLimit > 0
-                    ? (container.ramUsage / container.ramLimit) * 100
-                    : 0;
-
-                let cardElement = document.getElementById(`card-${container.id}`);
-
-                // Detect if RAM is unlimited (with tolerance for rounding errors)
-                const ramLimitDisplay = (Math.abs(container.ramLimit - hostTotalMemory) < 10)
-                    ? 'Unlimited (Host)'
-                    : `${container.ramLimit} MiB`;
-
-                if (isFirstRender || !cardElement) {
-                    newCardsHtml += `
-                        <div class="container-card" id="card-${container.id}">
-                            <div class="card-header">
-                                <span class="card-title">${container.name}</span>
-                                <span class="status-badge ${statusClass}">${statusText}</span>
-                            </div>
-                            <div class="stats-grid">
-                                <div class="stat-block">
-                                    <p class="stat-label">CPU Usage (Current)</p>
-                                    <p class="stat-value cpu-value" style="color: var(--cpu-color);">${container.cpu.toFixed(2)}%</p>
-                                    <div class="chart-container">
-                                        <div id="${container.id}-cpu" style="width: 100%; height: 100%;"></div>
-                                    </div>
-                                </div>
-                                <div class="stat-block">
-                                    <p class="stat-label">RAM Usage (Current)</p>
-                                    <p class="stat-value ram-value" style="color: var(--ram-color);">${ramPercent.toFixed(1)}%</p>
-                                    <div class="chart-container">
-                                        <div id="${container.id}-ram" style="width: 100%; height: 100%;"></div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="metadata">
-                                <p><strong>Image:</strong> <strong style="max-width: 250px;">${container.image}</strong></p>
-                                <p><strong>RAM:</strong> <strong>${container.ramUsage} MiB / ${ramLimitDisplay}</strong></p>
-                                <p><strong>ID:</strong> <strong>${container.id.substring(0, 12)}</strong></p>
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    cardElement.querySelector('.card-title').textContent = container.name;
-                    const statusBadge = cardElement.querySelector('.status-badge');
-                    statusBadge.className = `status-badge ${statusClass}`;
-                    statusBadge.textContent = statusText;
-                    cardElement.querySelector('.cpu-value').textContent = container.cpu.toFixed(2) + '%';
-                    cardElement.querySelector('.ram-value').textContent = ramPercent.toFixed(1) + '%';
-                    cardElement.querySelector('.metadata p:nth-child(1) strong:last-child').textContent = container.image;
-                    cardElement.querySelector('.metadata p:nth-child(2) strong:last-child').textContent = `${container.ramUsage} MiB / ${ramLimitDisplay}`;
-                    cardElement.querySelector('.metadata p:nth-child(3) strong:last-child').textContent = container.id.substring(0, 12);
-                }
-
-                containersToUpdate.push(container);
-            });
-
-            if (isFirstRender) {
-                containerGrid.innerHTML = newCardsHtml;
-                isFirstRender = false;
-                
-                // Initialize charts after DOM is ready
-                setTimeout(() => {
-                    containersToUpdate.forEach(container => {
-                        initializeChart(`${container.id}-cpu`, 'var(--cpu-color)');
-                        initializeChart(`${container.id}-ram`, 'var(--ram-color)');
-                    });
-                }, 100);
-            } else if (newCardsHtml) {
-                containerGrid.insertAdjacentHTML('beforeend', newCardsHtml);
-                
-                // Initialize charts for new containers
-                setTimeout(() => {
-                    const newContainerIds = newCardsHtml.match(/card-([a-f0-9]+)/g);
-                    if (newContainerIds) {
-                        newContainerIds.forEach(match => {
-                            const containerId = match.replace('card-', '');
-                            initializeChart(`${containerId}-cpu`, 'var(--cpu-color)');
-                            initializeChart(`${containerId}-ram`, 'var(--ram-color)');
-                        });
-                    }
-                }, 100);
-            }
-
-            containersToUpdate.forEach(container => {
-                const ramPercent = container.ramLimit > 0
-                    ? (container.ramUsage / container.ramLimit) * 100
-                    : 0;
-                updateChart(container.id, 'cpu', container.cpu, 'var(--cpu-color)');
-                updateChart(container.id, 'ram', ramPercent, 'var(--ram-color)');
-            });
-
-            const currentCardIds = Array.from(containerGrid.children)
-                .map(el => el.id.replace('card-', ''))
-                .filter(id => id);
-
-            currentCardIds.forEach(id => {
-                if (!activeContainers.has(id) && id !== 'loading-message') {
-                    document.getElementById(`card-${id}`)?.remove();
-                }
-            });
-
-            cleanUpCharts(activeContainers);
-        }
-
-        // SSE reconnection logic with exponential backoff
-        let sseReconnectDelay = 1000; // 1s
-        const MAX_SSE_DELAY = 30000; // 30s
-        let sseReconnectTimer = null;
-
-        function connectEventSource() {
-            if (eventSource) {
-                try { eventSource.close(); } catch (e) {}
-            }
-
-            eventSource = new EventSource('/stream');
-
-            eventSource.onmessage = function (event) {
-                const allData = JSON.parse(event.data);
-                renderAllData(allData);
-
-                // persist last data for fast restore
-                try {
-                    localStorage.setItem('dmon:lastSSE', JSON.stringify(allData));
-                } catch (e) {
-                    // ignore storage failures
-                }
-
-                // Reset backoff on successful message
-                sseReconnectDelay = 1000;
-                if (sseReconnectTimer) { clearTimeout(sseReconnectTimer); sseReconnectTimer = null; }
-            };
-
-            eventSource.onerror = function (err) {
-                console.error("EventSource failed:", err);
-                lastUpdateSpan.textContent = 'Connection error. Retrying...';
-                if (loadingMessage) {
-                    loadingMessage.textContent = "Error: Data stream failed. Check server and docker.sock.";
-                    loadingMessage.style.display = 'block';
-                }
-
-                // Try manual reconnect with exponential backoff
-                if (!sseReconnectTimer) {
-                    sseReconnectTimer = setTimeout(() => {
-                        connectEventSource();
-                        sseReconnectTimer = null;
-                        sseReconnectDelay = Math.min(MAX_SSE_DELAY, sseReconnectDelay * 2);
-                    }, sseReconnectDelay);
-                }
-            };
-        }
-
-        // Try to restore from cache immediately for fast UI
-        try {
-            const cachedRaw = localStorage.getItem('dmon:lastSSE');
-            if (cachedRaw) {
-                const cached = JSON.parse(cachedRaw);
-                renderAllData(cached, true);
-            }
-        } catch (e) { /* ignore parse errors */ }
-
-        // Handle BFCache restores
-        window.addEventListener('pageshow', (event) => {
-            if (event.persisted) {
-                try {
-                    const cachedRaw = localStorage.getItem('dmon:lastSSE');
-                    if (cachedRaw) renderAllData(JSON.parse(cachedRaw), true);
-                } catch (e) {}
-            }
-        });
-
-        // Start SSE
-        connectEventSource();
-
-        // Periodic update check every 2 hours (7200000 ms)
-        setInterval(async () => {
-            try {
-                const response = await fetch('/check-update');
-                const data = await response.json();
-                const link = document.getElementById('update-link');
-                const button = document.getElementById('update-button');
-                if (data.needUpdate) {
-                    link.style.display = 'inline-block';
-                    button.textContent = `Mise à jour disponible vers v${data.latestVersion}`;
-                } else {
-                    link.style.display = 'none';
-                }
-            } catch (e) {
-                console.error('Error checking update:', e);
-            }
-        }, 7200000);
-
-        // Register Service Worker for offline/app-shell caching
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js')
-                .then(reg => console.log('ServiceWorker registered:', reg.scope))
-                .catch(err => console.warn('SW registration failed:', err));
-        }
-    </script>
     <div class="footer">©2025 Olivier Vandamme - v<%= version %>
         <span style="color: var(--primary-color); margin-left: 15px;">Latest: v<%= latestVersion %></span> | 
 		<span><a target="_blank" href="https://dmon.fr">dmon.fr</a></span>
     </div>
 
-   
-
 </body>
-
 </html>
