@@ -127,21 +127,13 @@ const getDockerStatsCached = async () => {
 };
 
 // --- VERSION MANAGEMENT ---
-let cachedLatestVersion = null;
-let cachedLatestVersionTime = 0;
-const VERSION_CACHE_TTL = 3600000; // 1 hour cache
-
+// No caching for latest version: always fetch remote package.json
 /**
- * Fetches the latest version from remote package.json (with caching)
+ * Fetches the latest version from remote package.json (no caching)
  */
 const getLatestVersion = () => {
-    const now = Date.now();
-    if (cachedLatestVersion && now - cachedLatestVersionTime < VERSION_CACHE_TTL) {
-        return Promise.resolve(cachedLatestVersion);
-    }
-
     return new Promise((resolve) => {
-        const fallback = () => resolve(cachedLatestVersion || VERSION);
+        const fallback = () => resolve(VERSION);
         const req = https.request({
             hostname: 'dmon.fr',
             path: '/package.json',
@@ -153,9 +145,8 @@ const getLatestVersion = () => {
             res.on('data', chunk => data += chunk);
             res.on('end', () => {
                 try {
-                    cachedLatestVersion = JSON.parse(data).version || VERSION;
-                    cachedLatestVersionTime = Date.now();
-                    resolve(cachedLatestVersion);
+                    const remoteVersion = JSON.parse(data).version;
+                    resolve(remoteVersion || VERSION);
                 } catch { fallback(); }
             });
         });

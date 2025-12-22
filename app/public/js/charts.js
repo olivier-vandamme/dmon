@@ -129,7 +129,6 @@ const initHostCharts = () => {
     initChart('host-ram-chart', COLORS.ram);
 };
 
-// Resize handler (debounced)
 /**
  * Resize handler (debounced): resizes all charts after 100ms.
  */

@@ -60,8 +60,9 @@ const restoreFromCache = (showMsg = true) => {
 restoreFromCache(true);
 connectSSE();
 if (echartsReady) initHostCharts();
+
 // Track last visible timestamp for conditional reload
-window._dmonLastVisible = Date.now();
+//window._dmonLastVisible = Date.now();
 
 // Event handlers
 window.addEventListener('pageshow', e => { if (e.persisted) { /* Do not restore cached view on pageshow */ connectSSE(); } });
@@ -123,7 +124,6 @@ document.addEventListener('visibilitychange', () => {
 });
 
 
-// Update check
 /**
  * Periodically checks whether a new version is available server-side and displays the update link.
  */
@@ -131,7 +131,8 @@ const checkUpdate = async () => {
     try {
         const { needUpdate, latestVersion } = await fetch('/check-update').then(r => r.json());
         $('update-link').style.display = needUpdate ? 'inline-block' : 'none';
-        if (needUpdate) $('update-button').textContent = `Mise à jour disponible vers v${latestVersion}`;
+        if (needUpdate) $('update-button').textContent = `Update available to v${latestVersion}`;
+        $('latest-version').textContent = `Latest: v${latestVersion}`;
     } catch {}
 };
 

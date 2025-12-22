@@ -36,7 +36,7 @@
             <span><i class="fas fa-chart-line"></i> Dmon - Docker containers monitor</span>
             <a id="update-link" href="https://dmon.fr" target="_blank" style="text-decoration: none; display: <%= needUpdate ? 'inline-block' : 'none' %>;">
                 <button id="update-button" style="background-color: #007bff; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 5px;">
-                    Mise à jour disponible<%= needUpdate ? ` vers v${latestVersion}` : '' %>
+                    Mise à jour disponible
                 </button>
             </a>
         </h1>
@@ -96,8 +96,7 @@
 
 
     <div class="footer">©2025 Olivier Vandamme - v<%= version %>
-        <span style="color: var(--primary-color); margin-left: 15px;">Latest: v<%= latestVersion %></span> | 
-		<span><a target="_blank" href="https://dmon.fr">dmon.fr</a></span>
+        <span id="latest-version" style="color: var(--primary-color); margin-left: 15px;">Latest: v<%= latestVersion %></span> | 
     </div>
 
 </body>
