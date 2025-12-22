@@ -72,19 +72,6 @@ let _hiddenTimeout;
 let _wasHidden = false;
 
 /**
- * Suspends the app: closes the SSE connection and shows a suspended message (used when the page is hidden for a long period).
- */
-// function _suspendApp() {
-//     // Close SSE and show a light suspended message
-//     try { eventSource?.close(); eventSource = null; } catch (e) {}
-//     if (loadingMessage) {
-//         loadingMessage.textContent = 'App suspended (page hidden for >5min).';
-//         loadingMessage.style.display = 'block';
-//     }
-//     lastUpdateSpan.textContent = 'Suspended while hidden';
-// }
-
-/**
  * Handler called when the page becomes hidden: prepares suspension and closes the SSE connection.
  */
 function _onHidden() {
@@ -100,12 +87,6 @@ function _onHidden() {
 
     // Close SSE to avoid background use; reconnection will wait until visible
     try { eventSource?.close(); } catch (e) {}
-
-    // schedule full suspend after timeout
-    // _hiddenTimeout = window.setTimeout(() => {
-    //     _hiddenTimeout = undefined;
-    //     if (document.hidden) _suspendApp();
-    // }, HIDDEN_SUSPEND_MS);
 
     // ensure we wake on focus
     window.addEventListener('focus', _onVisible, { once: true });
@@ -138,23 +119,6 @@ function _checkVisibility() { document.hidden ? _onHidden() : _onVisible(); }
 
 // Handle visibility changes and keep the previous reload-after-long-hidden logic
 document.addEventListener('visibilitychange', () => {
-    // const now = Date.now();
-    // const last = window._dmonLastVisible || now;
-    // // Update last visible timestamp now
-    // window._dmonLastVisible = now;
-
-    // if (!document.hidden) {
-    //     // If page was hidden for longer than threshold, do a full reload to refresh state
-    //     if (last && (now - last > RELOAD_THRESHOLD)) {
-    //         //window.location.href = window.location.pathname;
-    //         return;
-    //     }
-    // } else {
-    //     // Mark when the page became hidden
-    //     window._dmonLastVisible = now;
-    // }
-
-    // New suspend/resume behavior
     _checkVisibility();
 });
 
@@ -170,8 +134,9 @@ const checkUpdate = async () => {
         if (needUpdate) $('update-button').textContent = `Mise à jour disponible vers v${latestVersion}`;
     } catch {}
 };
-setInterval(checkUpdate, 7200000);
-setTimeout(checkUpdate, 2000);
+
+setTimeout(checkUpdate, 2000); // 1st update check 2s after loading
+setInterval(checkUpdate, 21600000); // update ckeck all 6 hours
 
 // Service Worker
 navigator.serviceWorker?.register('/sw.js').catch(() => {});

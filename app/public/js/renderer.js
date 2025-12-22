@@ -12,11 +12,6 @@
  */
 
 // Render function
-/**
- * Renders received data: updates the display for containers and the host.
- * @param {Object} data - payload containing containers and host
- * @param {boolean} [isFromCache=false] - indicates if data comes from cache
- */
 const renderAllData = (data, isFromCache = false) => {
     lastRenderedData = data;
     const { containers = [], host = {} } = data;
